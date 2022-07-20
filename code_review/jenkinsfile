@@ -1,0 +1,45 @@
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'kubernetes'
+            label 'kubeagent'
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: hadolint
+      image: hadolint/hadolint:latest-debian
+      #image: ghcr.io/hadolint/hadolint:latest-debian
+      imagePullPolicy: Always
+      command:
+        - cat
+      tty: true
+
+'''
+        }
+    }
+    stages {
+        stage('Getting repo from GIT') {
+            steps {
+                script {
+                    git credentialsId: 'my-github-ssh', url: 'https://github.com/yaroslav-kovalevskyi/docker.git'
+                    sh 'git checkout master'
+                }
+            }
+        }
+        stage('lint dockerfile') {
+            steps {
+                container('hadolint') {
+                    sh 'hadolint ./EDP/Docker_Familiarization/Dockerfile | tee -a hadolint_result.txt'
+                    sh 'cat hadolint_result.txt'
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts 'hadolint_result.txt'
+                }
+            }
+        }
+    }
+}
